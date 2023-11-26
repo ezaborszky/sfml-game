@@ -126,6 +126,6 @@ Vec2 getDirection(Vec2 start, Vec2 target)
 
     finDir.x = std::sin(angle);
     finDir.y = std::cos(angle);
-
+    //  std::cout << "x: " << finDir.x << "  " << "y: " << finDir.y << std::endl;
     return finDir;
 }

@@ -4,6 +4,8 @@
 #include "Utility.h"
 #include <imgui-SFML.h>
 #include <imgui.h>
+#include <SFML/System/Clock.hpp>
+
 
 int wheight = 768;
 int wwidth = 1024;
@@ -15,6 +17,9 @@ int maxVel = 5;
 int enemySize = 30;
 int bulletSpeed = 10;
 int bulletLife = 100;
+
+
+
 std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
 
 Game::Game()
@@ -22,7 +27,18 @@ Game::Game()
     m_window.create(sf::VideoMode(wwidth, wheight), "Progi");
     m_window.setFramerateLimit(60);
     ImGui::SFML::Init(m_window);
+ 
 }
+
+// float Game::FPS(){
+
+
+//     currentTime = clock.getElapsedTime();
+//     fps = 1.0f / (currentTime.asSeconds() - previousTime.asSeconds()); // the asSeconds returns a float
+//     previousTime = currentTime;
+
+//     return fps;
+// }
 
 void Game::setupImGui()
 {
@@ -37,11 +53,15 @@ void Game::setupImGui()
 
 void Game::run()
 {
-
+   
     spawnPlayer();
     entityManager.update();
     createText();
     // entityManager.update();
+    float fps;
+    sf::Clock clock;
+    sf::Time time = clock.getElapsedTime();
+    sf::Time current;
     while (m_window.isOpen())
     {
 
@@ -49,14 +69,22 @@ void Game::run()
         m_currentFrame++;
         userInput();
 
+        if(!m_player->cInput->pause)
+        {
         spawnEnemy();
         ImGui::SFML::Update(m_window, sf::seconds(1.0f / 60.0f));
         setupImGui();
         sCollision();
         sLifeSpan();
         sMovement();
-        sScore();
+        sScore(fps);
         sRender(m_window);
+        current = clock.getElapsedTime();
+        fps = 1/(current.asSeconds() - time.asSeconds());
+        time = current;
+      
+        }
+
     }
 }
 
@@ -206,7 +234,10 @@ void Game::userInput()
                 break;
             case sf::Keyboard::Space:
                 spawnHomingBullet();
-
+                break;
+            case sf::Keyboard::Escape:
+                if(m_player->cInput->pause == false) 
+                {m_player->cInput->pause = true;} else {m_player->cInput->pause = false;};
                 break;
             default:
                 break;
@@ -325,6 +356,20 @@ void Game::sLifeSpan()
             }
 
             a->cShape->circle.setFillColor(currentColor);
+
+            
+            sf::Color currentColorOut = a->cShape->circle.getOutlineColor();
+
+            if (alphaDecrease > currentColorOut.a)
+            {
+                currentColorOut.a = 0; // Ensure alpha doesn't go negative
+            }
+            else
+            {
+                currentColorOut.a -= static_cast<sf::Uint8>(alphaDecrease);
+            }
+
+            a->cShape->circle.setOutlineColor(currentColorOut);
         }
     }
 }
@@ -344,7 +389,7 @@ void Game::spawnEnemy()
         enemy->cShape->circle.setOutlineThickness(3);
         enemy->cShape->circle.setOutlineColor(randomColor(rng));
         m_lastEnemySpawn = m_currentFrame;
-        std::cout << sizeof(enemy) << std::endl;
+        
     }
 }
 
@@ -370,11 +415,20 @@ void Game::createText()
     auto text = entityManager.addEntity("text");
     text->cTransform = std::make_shared<CTransform>(Vec2(wheight / 10, wwidth / 2), Vec2(0, 0));
     text->cText = std::make_shared<CText>();
-    text->cText->font.loadFromFile("font1.ttf");
+    text->cText->font.loadFromFile("./font1.ttf");
     text->cText->text.setFont(text->cText->font);
-    text->cText->text.setString("ASD");
+    text->cText->text.setString("ASD");     
     text->cText->text.setCharacterSize(40);
     text->cText->text.setPosition(text->cTransform->pos.y, text->cTransform->pos.x);
+
+    auto text2 = entityManager.addEntity("text");
+    text2->cTransform = std::make_shared<CTransform>(Vec2(wheight / 20, wwidth / 2), Vec2(0, 0));
+    text2->cText = std::make_shared<CText>();
+    text2->cText->font.loadFromFile("./font1.ttf");
+    text2->cText->text.setFont(text2->cText->font);
+    text2->cText->text.setString("ASD");     
+    text2->cText->text.setCharacterSize(40);
+    text2->cText->text.setPosition(text2->cTransform->pos.y, text2->cTransform->pos.x);
 }
 
 // RENDER
@@ -393,6 +447,11 @@ void Game::sRender(sf::RenderWindow &window)
     }
 
     for (auto a : entityManager.getEntities("enemy"))
+    {
+        window.draw(a->cShape->circle);
+    }
+
+       for (auto a : entityManager.getEntities("smallenemy"))
     {
         window.draw(a->cShape->circle);
     }
@@ -445,7 +504,29 @@ void Game::sCollision()
         for (auto &b : entityManager.getEntities("bullet"))
         {
             if (((e->cTransform->pos.dist(b->cTransform->pos)) < (e->cShape->circle.getRadius() * 1.2)) && e->cTransform->pos != b->cTransform->pos)
-            {
+            {   
+
+                // std::cout << e->cShape->circle.getRadius() << " " << enemySize << std::endl;
+                if((int)e->cShape->circle.getRadius() >= (int)enemySize)
+                {
+                     spawnSmallEnemy(e);
+                }
+             
+                e->destroy();
+                b->destroy();
+                m_player->cScore->score += 100;
+            }
+        }
+    }
+
+        for (auto &e : entityManager.getEntities("smallenemy"))
+    {
+        for (auto &b : entityManager.getEntities("bullet"))
+        {
+            if (((e->cTransform->pos.dist(b->cTransform->pos)) < (e->cShape->circle.getRadius() * 1.2)) && e->cTransform->pos != b->cTransform->pos)
+            {   
+
+                
                 e->destroy();
                 b->destroy();
                 m_player->cScore->score += 100;
@@ -466,7 +547,19 @@ void Game::sCollision()
         }
     }
 
+ 
+
     for (auto &e : entityManager.getEntities("enemy"))
+    {
+        if (calculateDistance(e, m_player) < (m_player->cShape->circle.getRadius() + e->cShape->circle.getRadius()))
+        {
+            e->destroy();
+            m_player->destroy();
+            spawnPlayer();
+        }
+    }
+
+     for (auto &e : entityManager.getEntities("smallenemy"))
     {
         if (calculateDistance(e, m_player) < (m_player->cShape->circle.getRadius() + e->cShape->circle.getRadius()))
         {
@@ -494,8 +587,49 @@ bool Game::playerCollision(std::shared_ptr<Entity> &player, int height, int widt
     return false;
 }
 
-void Game::sScore()
+void Game::sScore(float fps)
 {
     std::string score = std::to_string(m_player->cScore->score);
     entityManager.getEntities("text")[0]->cText->text.setString(score);
+
+    std::string fpstext = std::to_string(fps) ;
+    entityManager.getEntities("text")[1]->cText->text.setString(fpstext);
 }
+
+void Game::spawnSmallEnemy(std::shared_ptr<Entity> parentEnemy)
+{
+        int spawnNumber = parentEnemy->cShape->circle.getPointCount();
+        Vec2 pos = parentEnemy->cTransform->pos;
+        float angle = (2*3.14)/spawnNumber;
+        float initAngle = 0;
+      
+        
+        for(int i = 0; i < spawnNumber; i++)
+        {
+        
+        Vec2 finDir;
+        finDir.x = std::sin(initAngle);
+        finDir.y = std::cos(initAngle);
+
+        //   std::cout << "x: " << finDir.x << "  " << "y: " << finDir.y << std::endl;
+
+         auto enemy = entityManager.addEntity("enemy");
+        enemy->cShape = std::make_shared<CShape>(enemySize/2, spawnNumber);
+        enemy->cTransform = std::make_shared<CTransform>(pos, finDir);
+        enemy->cShape->circle.setPosition(((enemy->cTransform->pos.x)), (enemy->cTransform->pos.y));
+        enemy->cShape->circle.setOrigin(enemy->cShape->circle.getRadius(), enemy->cShape->circle.getRadius());
+        enemy->cShape->circle.setFillColor(sf::Color(0, 0, 0, 0));
+        enemy->cShape->circle.setOutlineThickness(3);
+        enemy->cShape->circle.setOutlineColor(parentEnemy->cShape->circle.getOutlineColor());
+        enemy->cLifespan = std::make_shared<CLifespan>(100);
+        
+        initAngle += angle;
+        };
+        
+        // std::cout << spawnNumber << std::endl;
+
+      
+        // m_lastEnemySpawn = m_currentFrame;
+};
+
+

@@ -46,6 +46,7 @@ public:
     bool right = false;
     bool up = false;
     bool down = false;
+    bool pause = false;
     CInput(){};
 };
 

@@ -13,7 +13,7 @@ public:
     void run();
     Game();
     void spawnEnemy();
-    void sScore();
+    void sScore(float fps);
     void sMovement();
     void spawnBullet();
     void spawnHomingBullet();
@@ -27,4 +27,6 @@ public:
     // void enemySpawner();
     void sRender(sf::RenderWindow &window);
     void setupImGui();
+    void spawnSmallEnemy(std::shared_ptr<Entity> enemy);
+ 
 };
